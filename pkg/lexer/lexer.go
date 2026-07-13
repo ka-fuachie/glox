@@ -90,6 +90,12 @@ func (l *Lexer) NextToken() (Token, error) {
 			}
 
 			return l.NextToken()
+		} else if l.match('*') {
+			_, err := l.blockComment()
+			if err != nil {
+				return Token{}, err
+			}
+			return l.NextToken()
 		} else {
 			return l.token(SLASH), nil
 		}
@@ -244,4 +250,34 @@ func (l *Lexer) identifier() (Token, error) {
 	}
 
 	return l.token(IDENTIFIER), nil
+}
+
+func (l *Lexer) blockComment() (Token, error) {
+	for (l.peek() != '*' || l.peekNext() != '/') && !l.isAtEnd() {
+		if l.peek() == '/' && l.peekNext() == '*' {
+			// Nested block comment
+			// for starting "/*"
+			l.advance()
+			l.advance()
+			_, err := l.blockComment()
+			if err != nil {
+				return Token{}, err
+			}
+		} else {
+			if l.peek() == '\n' {
+				l.line++
+			}
+			l.advance()
+		}
+	}
+
+	if l.isAtEnd() {
+		return Token{}, &gloxerror.EvalError{Message: "Unterminated block comment.", Line: l.line}
+	}
+
+	// for ending "*/"
+	l.advance()
+	l.advance()
+
+	return Token{}, nil
 }

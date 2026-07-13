@@ -1,0 +1,14 @@
+// Simple inline comment
+print
+/*
+Block comment
+*/
+print
+/*
+Nested/*
+Block
+*/
+Comment
+*/
+print
+/* Unterminated block comment /* Nested
