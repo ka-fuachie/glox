@@ -1,7 +1,31 @@
 package main
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+	"glox/internal/cli"
+	gloxerror "glox/pkg/error"
+	"log"
+	"os"
+)
 
 func main() {
-	fmt.Println("Hello from Glox!")
+	args := os.Args[1:]
+
+	if len(args) > 1 {
+		fmt.Println("Usage: glox [file]")
+		os.Exit(64)
+	} else if len(args) == 1 {
+		err := cli.RunFile(args[0])
+		if err != nil {
+			if _, ok := errors.AsType[*gloxerror.EvalError](err); ok {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(65)
+			} else {
+				log.Fatal(err)
+			}
+		}
+	} else {
+		cli.StartRepl(os.Stdin, os.Stdout)
+	}
 }

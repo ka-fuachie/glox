@@ -1,0 +1,247 @@
+package lexer
+
+import (
+	gloxerror "glox/pkg/error"
+	"iter"
+	"strconv"
+)
+
+type Lexer struct {
+	source               []rune
+	start, current, line int
+}
+
+func New(source string) *Lexer {
+	return &Lexer{source: []rune(source), start: 0, current: 0, line: 1}
+}
+
+func (l *Lexer) Tokens() iter.Seq2[Token, error] {
+	return func(yield func(Token, error) bool) {
+		for {
+			tok, err := l.NextToken()
+			if !yield(tok, err) {
+				break
+			}
+
+			if tok.Type == EOF {
+				break
+			}
+		}
+	}
+}
+
+func (l *Lexer) NextToken() (Token, error) {
+	l.start = l.current
+	if l.isAtEnd() {
+		return l.token(EOF), nil
+	}
+
+	c := l.advance()
+
+	switch c {
+	case '(':
+		return l.token(LEFT_PAREN), nil
+	case ')':
+		return l.token(RIGHT_PAREN), nil
+	case '{':
+		return l.token(LEFT_BRACE), nil
+	case '}':
+		return l.token(RIGHT_BRACE), nil
+	case ',':
+		return l.token(COMMA), nil
+	case '.':
+		return l.token(DOT), nil
+	case '-':
+		return l.token(MINUS), nil
+	case '+':
+		return l.token(PLUS), nil
+	case ';':
+		return l.token(SEMICOLON), nil
+	case '*':
+		return l.token(STAR), nil
+	case '!':
+		if l.match('=') {
+			return l.token(BANG_EQUAL), nil
+		} else {
+			return l.token(BANG), nil
+		}
+	case '=':
+		if l.match('=') {
+			return l.token(EQUAL_EQUAL), nil
+		} else {
+			return l.token(EQUAL), nil
+		}
+	case '<':
+		if l.match('=') {
+			return l.token(LESS_EQUAL), nil
+		} else {
+			return l.token(LESS), nil
+		}
+	case '>':
+		if l.match('=') {
+			return l.token(GREATER_EQUAL), nil
+		} else {
+			return l.token(GREATER), nil
+		}
+	case '/':
+		if l.match('/') {
+			for l.peek() != '\n' && !l.isAtEnd() {
+				l.advance()
+			}
+
+			return l.NextToken()
+		} else {
+			return l.token(SLASH), nil
+		}
+
+	case ' ', '\t', '\r':
+		return l.NextToken()
+
+	case '\n':
+		l.line++
+		return l.NextToken()
+
+	case '"':
+		return l.string()
+
+	default:
+		if isDigit(c) {
+			return l.number()
+		} else if isAlpha(c) {
+			return l.identifier()
+		}
+
+		return Token{}, &gloxerror.EvalError{Message: "Unexpected character.", Line: l.line}
+	}
+}
+
+func (l *Lexer) isAtEnd() bool {
+	return l.current >= len(l.source)
+}
+
+func (l *Lexer) advance() rune {
+	c := l.source[l.current]
+	l.current++
+	return c
+}
+
+func (l *Lexer) token(t TokenType) Token {
+	return l.tokenWithLiteral(t, nil)
+}
+
+func (l *Lexer) tokenWithLiteral(t TokenType, literal any) Token {
+	text := string(l.source[l.start:l.current])
+	return Token{Type: t, Lexeme: text, Literal: literal, Line: l.line}
+}
+
+func (l *Lexer) match(c rune) bool {
+	if l.isAtEnd() {
+		return false
+	}
+	if l.source[l.current] != c {
+		return false
+	}
+
+	l.current++
+	return true
+}
+
+func (l *Lexer) peek() rune {
+	if l.isAtEnd() {
+		return '\x00'
+	}
+
+	return l.source[l.current]
+}
+
+func (l *Lexer) peekNext() rune {
+	if l.current+1 >= len(l.source) {
+		return '\x00'
+	}
+
+	return l.source[l.current]
+}
+
+func isDigit(c rune) bool {
+	return c >= '0' && c <= '9'
+}
+
+func isAlpha(c rune) bool {
+	return (c >= 'a' && c <= 'z') ||
+		(c >= 'A' && c <= 'Z') ||
+		c == '_'
+}
+
+func isAlphaNumeric(c rune) bool {
+	return isAlpha(c) || isDigit(c)
+}
+
+func (l *Lexer) string() (Token, error) {
+	for l.peek() != '"' && !l.isAtEnd() {
+		if l.peek() == '\n' {
+			l.line++
+		}
+		l.advance()
+	}
+
+	if l.isAtEnd() {
+		return Token{}, &gloxerror.EvalError{Message: "Unterminated string.", Line: l.line}
+	}
+
+	l.advance() // past closing "
+
+	value := string(l.source[l.start+1 : l.current-1])
+	return l.tokenWithLiteral(STRING, value), nil
+}
+
+func (l *Lexer) number() (Token, error) {
+	for isDigit(l.peek()) {
+		l.advance()
+	}
+
+	if l.peek() == '.' && isDigit(l.peekNext()) {
+		l.advance()
+		for isDigit(l.peek()) {
+			l.advance()
+		}
+	}
+
+	value, err := strconv.ParseFloat(string(l.source[l.start:l.current]), 64)
+	if err != nil {
+		return Token{}, &gloxerror.EvalError{Message: "Invalid number.", Line: l.line}
+	}
+
+	return l.tokenWithLiteral(NUMBER, value), nil
+}
+
+var keywords = map[string]TokenType{
+	"and":    AND,
+	"class":  CLASS,
+	"else":   ELSE,
+	"false":  FALSE,
+	"for":    FOR,
+	"fun":    FUN,
+	"if":     IF,
+	"nil":    NIL,
+	"or":     OR,
+	"print":  PRINT,
+	"return": RETURN,
+	"super":  SUPER,
+	"this":   THIS,
+	"true":   TRUE,
+	"var":    VAR,
+	"while":  WHILE,
+}
+
+func (l *Lexer) identifier() (Token, error) {
+	for isAlphaNumeric(l.peek()) {
+		l.advance()
+	}
+
+	text := string(l.source[l.start:l.current])
+	if t, ok := keywords[text]; ok {
+		return l.token(t), nil
+	}
+
+	return l.token(IDENTIFIER), nil
+}
