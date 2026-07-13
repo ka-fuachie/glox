@@ -159,7 +159,7 @@ func (l *Lexer) peekNext() rune {
 		return '\x00'
 	}
 
-	return l.source[l.current]
+	return l.source[l.current+1]
 }
 
 func isDigit(c rune) bool {
