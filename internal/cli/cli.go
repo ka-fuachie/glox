@@ -2,7 +2,6 @@ package cli
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"glox/pkg/lexer"
 	"io"
@@ -35,8 +34,6 @@ func StartRepl(in io.Reader, out io.Writer) {
 		fmt.Fprintln(out, err)
 	}
 }
-
-var EvalError = errors.New("Syntax error")
 
 func RunFile(name string) error {
 	data, err := os.ReadFile(name)
