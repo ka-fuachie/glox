@@ -30,3 +30,18 @@ func parenthesize(name string, exprs ...Expr) string {
 	sb.WriteRune(')')
 	return sb.String()
 }
+
+func PrintRPN(expr Expr) string {
+	switch e := expr.(type) {
+	case *BinaryExpr:
+		return fmt.Sprintf("%s %s %s", PrintRPN(e.Left), PrintRPN(e.Right), e.Operator.Lexeme)
+	case *GroupingExpr:
+		return PrintRPN(e.Expression)
+	case *LiteralExpr:
+		return fmt.Sprintf("%v", e.Value)
+	case *UnaryExpr:
+		return fmt.Sprintf("%s %s", PrintRPN(e.Right), e.Operator.Lexeme)
+	default:
+		return ""
+	}
+}
