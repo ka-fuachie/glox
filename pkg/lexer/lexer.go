@@ -2,6 +2,7 @@ package lexer
 
 import (
 	gloxerror "glox/pkg/error"
+	"glox/pkg/token"
 	"iter"
 	"strconv"
 )
@@ -15,73 +16,73 @@ func New(source string) *Lexer {
 	return &Lexer{source: []rune(source), start: 0, current: 0, line: 1}
 }
 
-func (l *Lexer) Tokens() iter.Seq2[Token, error] {
-	return func(yield func(Token, error) bool) {
+func (l *Lexer) Tokens() iter.Seq2[token.Token, error] {
+	return func(yield func(token.Token, error) bool) {
 		for {
 			tok, err := l.NextToken()
 			if !yield(tok, err) {
 				break
 			}
 
-			if tok.Type == EOF {
+			if tok.Type == token.EOF {
 				break
 			}
 		}
 	}
 }
 
-func (l *Lexer) NextToken() (Token, error) {
+func (l *Lexer) NextToken() (token.Token, error) {
 	l.start = l.current
 	if l.isAtEnd() {
-		return l.token(EOF), nil
+		return l.token(token.EOF), nil
 	}
 
 	c := l.advance()
 
 	switch c {
 	case '(':
-		return l.token(LEFT_PAREN), nil
+		return l.token(token.LEFT_PAREN), nil
 	case ')':
-		return l.token(RIGHT_PAREN), nil
+		return l.token(token.RIGHT_PAREN), nil
 	case '{':
-		return l.token(LEFT_BRACE), nil
+		return l.token(token.LEFT_BRACE), nil
 	case '}':
-		return l.token(RIGHT_BRACE), nil
+		return l.token(token.RIGHT_BRACE), nil
 	case ',':
-		return l.token(COMMA), nil
+		return l.token(token.COMMA), nil
 	case '.':
-		return l.token(DOT), nil
+		return l.token(token.DOT), nil
 	case '-':
-		return l.token(MINUS), nil
+		return l.token(token.MINUS), nil
 	case '+':
-		return l.token(PLUS), nil
+		return l.token(token.PLUS), nil
 	case ';':
-		return l.token(SEMICOLON), nil
+		return l.token(token.SEMICOLON), nil
 	case '*':
-		return l.token(STAR), nil
+		return l.token(token.STAR), nil
 	case '!':
 		if l.match('=') {
-			return l.token(BANG_EQUAL), nil
+			return l.token(token.BANG_EQUAL), nil
 		} else {
-			return l.token(BANG), nil
+			return l.token(token.BANG), nil
 		}
 	case '=':
 		if l.match('=') {
-			return l.token(EQUAL_EQUAL), nil
+			return l.token(token.EQUAL_EQUAL), nil
 		} else {
-			return l.token(EQUAL), nil
+			return l.token(token.EQUAL), nil
 		}
 	case '<':
 		if l.match('=') {
-			return l.token(LESS_EQUAL), nil
+			return l.token(token.LESS_EQUAL), nil
 		} else {
-			return l.token(LESS), nil
+			return l.token(token.LESS), nil
 		}
 	case '>':
 		if l.match('=') {
-			return l.token(GREATER_EQUAL), nil
+			return l.token(token.GREATER_EQUAL), nil
 		} else {
-			return l.token(GREATER), nil
+			return l.token(token.GREATER), nil
 		}
 	case '/':
 		if l.match('/') {
@@ -93,11 +94,11 @@ func (l *Lexer) NextToken() (Token, error) {
 		} else if l.match('*') {
 			_, err := l.blockComment()
 			if err != nil {
-				return Token{}, err
+				return token.Token{}, err
 			}
 			return l.NextToken()
 		} else {
-			return l.token(SLASH), nil
+			return l.token(token.SLASH), nil
 		}
 
 	case ' ', '\t', '\r':
@@ -117,7 +118,7 @@ func (l *Lexer) NextToken() (Token, error) {
 			return l.identifier()
 		}
 
-		return Token{}, &gloxerror.EvalError{Message: "Unexpected character.", Line: l.line}
+		return token.Token{}, &gloxerror.EvalError{Message: "Unexpected character.", Line: l.line}
 	}
 }
 
@@ -131,13 +132,13 @@ func (l *Lexer) advance() rune {
 	return c
 }
 
-func (l *Lexer) token(t TokenType) Token {
+func (l *Lexer) token(t token.TokenType) token.Token {
 	return l.tokenWithLiteral(t, nil)
 }
 
-func (l *Lexer) tokenWithLiteral(t TokenType, literal any) Token {
+func (l *Lexer) tokenWithLiteral(t token.TokenType, literal any) token.Token {
 	text := string(l.source[l.start:l.current])
-	return Token{Type: t, Lexeme: text, Literal: literal, Line: l.line}
+	return token.Token{Type: t, Lexeme: text, Literal: literal, Line: l.line}
 }
 
 func (l *Lexer) match(c rune) bool {
@@ -182,7 +183,7 @@ func isAlphaNumeric(c rune) bool {
 	return isAlpha(c) || isDigit(c)
 }
 
-func (l *Lexer) string() (Token, error) {
+func (l *Lexer) string() (token.Token, error) {
 	for l.peek() != '"' && !l.isAtEnd() {
 		if l.peek() == '\n' {
 			l.line++
@@ -191,16 +192,16 @@ func (l *Lexer) string() (Token, error) {
 	}
 
 	if l.isAtEnd() {
-		return Token{}, &gloxerror.EvalError{Message: "Unterminated string.", Line: l.line}
+		return token.Token{}, &gloxerror.EvalError{Message: "Unterminated string.", Line: l.line}
 	}
 
 	l.advance() // past closing "
 
 	value := string(l.source[l.start+1 : l.current-1])
-	return l.tokenWithLiteral(STRING, value), nil
+	return l.tokenWithLiteral(token.STRING, value), nil
 }
 
-func (l *Lexer) number() (Token, error) {
+func (l *Lexer) number() (token.Token, error) {
 	for isDigit(l.peek()) {
 		l.advance()
 	}
@@ -214,32 +215,32 @@ func (l *Lexer) number() (Token, error) {
 
 	value, err := strconv.ParseFloat(string(l.source[l.start:l.current]), 64)
 	if err != nil {
-		return Token{}, &gloxerror.EvalError{Message: "Invalid number.", Line: l.line}
+		return token.Token{}, &gloxerror.EvalError{Message: "Invalid number.", Line: l.line}
 	}
 
-	return l.tokenWithLiteral(NUMBER, value), nil
+	return l.tokenWithLiteral(token.NUMBER, value), nil
 }
 
-var keywords = map[string]TokenType{
-	"and":    AND,
-	"class":  CLASS,
-	"else":   ELSE,
-	"false":  FALSE,
-	"for":    FOR,
-	"fun":    FUN,
-	"if":     IF,
-	"nil":    NIL,
-	"or":     OR,
-	"print":  PRINT,
-	"return": RETURN,
-	"super":  SUPER,
-	"this":   THIS,
-	"true":   TRUE,
-	"var":    VAR,
-	"while":  WHILE,
+var keywords = map[string]token.TokenType{
+	"and":    token.AND,
+	"class":  token.CLASS,
+	"else":   token.ELSE,
+	"false":  token.FALSE,
+	"for":    token.FOR,
+	"fun":    token.FUN,
+	"if":     token.IF,
+	"nil":    token.NIL,
+	"or":     token.OR,
+	"print":  token.PRINT,
+	"return": token.RETURN,
+	"super":  token.SUPER,
+	"this":   token.THIS,
+	"true":   token.TRUE,
+	"var":    token.VAR,
+	"while":  token.WHILE,
 }
 
-func (l *Lexer) identifier() (Token, error) {
+func (l *Lexer) identifier() (token.Token, error) {
 	for isAlphaNumeric(l.peek()) {
 		l.advance()
 	}
@@ -249,10 +250,10 @@ func (l *Lexer) identifier() (Token, error) {
 		return l.token(t), nil
 	}
 
-	return l.token(IDENTIFIER), nil
+	return l.token(token.IDENTIFIER), nil
 }
 
-func (l *Lexer) blockComment() (Token, error) {
+func (l *Lexer) blockComment() (token.Token, error) {
 	for (l.peek() != '*' || l.peekNext() != '/') && !l.isAtEnd() {
 		if l.peek() == '/' && l.peekNext() == '*' {
 			// Nested block comment
@@ -261,7 +262,7 @@ func (l *Lexer) blockComment() (Token, error) {
 			l.advance()
 			_, err := l.blockComment()
 			if err != nil {
-				return Token{}, err
+				return token.Token{}, err
 			}
 		} else {
 			if l.peek() == '\n' {
@@ -272,12 +273,12 @@ func (l *Lexer) blockComment() (Token, error) {
 	}
 
 	if l.isAtEnd() {
-		return Token{}, &gloxerror.EvalError{Message: "Unterminated block comment.", Line: l.line}
+		return token.Token{}, &gloxerror.EvalError{Message: "Unterminated block comment.", Line: l.line}
 	}
 
 	// for ending "*/"
 	l.advance()
 	l.advance()
 
-	return Token{}, nil
+	return token.Token{}, nil
 }
