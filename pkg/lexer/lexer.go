@@ -1,7 +1,7 @@
 package lexer
 
 import (
-	gloxerror "glox/pkg/error"
+	gloxError "glox/pkg/error"
 	"glox/pkg/token"
 	"iter"
 	"strconv"
@@ -118,7 +118,7 @@ func (l *Lexer) NextToken() (token.Token, error) {
 			return l.identifier()
 		}
 
-		return token.Token{}, &gloxerror.EvalError{Message: "Unexpected character.", Line: l.line}
+		return token.Token{}, gloxError.LineError(l.line, "Unexpected character.")
 	}
 }
 
@@ -192,7 +192,7 @@ func (l *Lexer) string() (token.Token, error) {
 	}
 
 	if l.isAtEnd() {
-		return token.Token{}, &gloxerror.EvalError{Message: "Unterminated string.", Line: l.line}
+		return token.Token{}, gloxError.LineError(l.line, "Unterminated string.")
 	}
 
 	l.advance() // past closing "
@@ -215,7 +215,7 @@ func (l *Lexer) number() (token.Token, error) {
 
 	value, err := strconv.ParseFloat(string(l.source[l.start:l.current]), 64)
 	if err != nil {
-		return token.Token{}, &gloxerror.EvalError{Message: "Invalid number.", Line: l.line}
+		panic(err)
 	}
 
 	return l.tokenWithLiteral(token.NUMBER, value), nil
@@ -273,7 +273,7 @@ func (l *Lexer) blockComment() (token.Token, error) {
 	}
 
 	if l.isAtEnd() {
-		return token.Token{}, &gloxerror.EvalError{Message: "Unterminated block comment.", Line: l.line}
+		return token.Token{}, gloxError.LineError(l.line, "Unterminated block comment.")
 	}
 
 	// for ending "*/"

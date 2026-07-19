@@ -3,7 +3,10 @@ package cli
 import (
 	"bufio"
 	"fmt"
+	"glox/pkg/ast"
 	"glox/pkg/lexer"
+	"glox/pkg/parser"
+	"glox/pkg/token"
 	"io"
 	"os"
 )
@@ -21,13 +24,22 @@ func StartRepl(in io.Reader, out io.Writer) {
 
 		line := scanner.Text()
 		lexer := lexer.New(line)
+		var tokens []token.Token
 		for token, err := range lexer.Tokens() {
 			if err != nil {
 				report(err)
 			} else {
-				fmt.Fprintln(out, token)
+				tokens = append(tokens, token)
 			}
 		}
+		parser := parser.New(tokens)
+		expr, err := parser.Parse()
+		if err != nil {
+			report(err)
+			continue
+		}
+
+		fmt.Fprintln(out, ast.Print(expr))
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -44,19 +56,35 @@ func RunFile(name string) error {
 	hadError := false
 	var firstError error = nil
 	lexer := lexer.New(string(data))
+	var tokens []token.Token
 	for token, err := range lexer.Tokens() {
 		if err != nil {
 			report(err)
 			hadError = true
+			if firstError == nil {
+				firstError = err
+			}
 			continue
 		}
 
-		fmt.Println(token)
+		tokens = append(tokens, token)
+	}
+
+	parser := parser.New(tokens)
+	expr, err := parser.Parse()
+	if err != nil {
+		report(err)
+		hadError = true
+		if firstError == nil {
+			firstError = err
+		}
 	}
 
 	if hadError {
 		return firstError
 	}
+
+	fmt.Println(ast.Print(expr))
 	return nil
 }
 
