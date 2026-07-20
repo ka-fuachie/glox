@@ -16,13 +16,17 @@ func New(tokens []token.Token) *Parser {
 	return &Parser{tokens: tokens, current: 0}
 }
 
-func (p *Parser) Parse() (ast.Expr, error) {
-	expr, err := p.expression()
-	if err != nil {
-		return nil, err
+func (p *Parser) Parse() ([]ast.Stmt, error) {
+	var statements []ast.Stmt
+	for !p.isAtEnd() {
+		stmt, err := p.declaration()
+		if err != nil {
+			return []ast.Stmt{}, err
+		}
+		statements = append(statements, stmt)
 	}
 
-	return expr, nil
+	return statements, nil
 }
 
 func (p *Parser) match(tokenTypes ...token.TokenType) bool {
@@ -89,6 +93,69 @@ func (p *Parser) synchronize() {
 
 func (p *Parser) expression() (ast.Expr, error) {
 	return p.equality()
+}
+
+func (p *Parser) declaration() (ast.Stmt, error) {
+	if p.match(token.VAR) {
+		return p.varDeclaration()
+	}
+
+	return p.statement()
+}
+
+func (p *Parser) statement() (ast.Stmt, error) {
+	if p.match(token.PRINT) {
+		return p.printStatement()
+	}
+
+	return p.expressionStatement()
+}
+
+func (p *Parser) expressionStatement() (ast.Stmt, error) {
+	expr, err := p.expression()
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = p.consume(token.SEMICOLON, "Expect ';' after expression.")
+	if err != nil {
+		return nil, err
+	}
+
+	return &ast.ExpressionStmt{Expression: expr}, nil
+}
+
+func (p *Parser) printStatement() (ast.Stmt, error) {
+	value, err := p.expression()
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = p.consume(token.SEMICOLON, "Expect ';' after value.")
+	if err != nil {
+		return nil, err
+	}
+
+	return &ast.PrintStmt{Expression: value}, nil
+}
+
+func (p *Parser) varDeclaration() (ast.Stmt, error) {
+	name, err := p.consume(token.IDENTIFIER, "Expect variable name.")
+	if err != nil {
+		return nil, err
+	}
+
+	var initializer ast.Expr
+	if p.match(token.EQUAL) {
+		initializer, err = p.expression()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	_, err = p.consume(token.SEMICOLON, "Expect ';' after variable declaration.")
+
+	return &ast.VarStmt{Name: name, Initializer: initializer}, nil
 }
 
 func (p *Parser) equality() (ast.Expr, error) {
@@ -189,6 +256,10 @@ func (p *Parser) primary() (ast.Expr, error) {
 
 	if p.match(token.NUMBER, token.STRING) {
 		return &ast.LiteralExpr{Value: p.previous().Literal}, nil
+	}
+
+	if p.match(token.IDENTIFIER) {
+		return &ast.VariableExpression{Name: p.previous()}, nil
 	}
 
 	if p.match(token.LEFT_PAREN) {

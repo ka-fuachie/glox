@@ -1,20 +1,30 @@
 package interpreter
 
 import (
+	"fmt"
 	"glox/pkg/ast"
 	gloxError "glox/pkg/error"
 	"glox/pkg/token"
+	"io"
 )
 
 type Interpreter struct {
+	out io.Writer
 }
 
-func New() *Interpreter {
-	return &Interpreter{}
+func New(out io.Writer) *Interpreter {
+	return &Interpreter{out: out}
 }
 
-func (i *Interpreter) Interpret(expr ast.Expr) (any, error) {
-	return i.evaluate(expr)
+func (i *Interpreter) Interpret(stmts []ast.Stmt) error {
+	for _, stmt := range stmts {
+		err := i.execute(stmt)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (i *Interpreter) evaluate(expr ast.Expr) (any, error) {
@@ -128,6 +138,28 @@ func (i *Interpreter) evaluate(expr ast.Expr) (any, error) {
 	}
 }
 
+func (i *Interpreter) execute(expr ast.Stmt) error {
+	switch e := expr.(type) {
+	case *ast.ExpressionStmt:
+		_, err := i.evaluate(e.Expression)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	case *ast.PrintStmt:
+		value, err := i.evaluate(e.Expression)
+		if err != nil {
+			return err
+		}
+
+		fmt.Fprintln(i.out, stringValue(value))
+		return nil
+	default:
+		panic("invalid statement")
+	}
+}
+
 func (i *Interpreter) isTruthy(val any) bool {
 	if val == nil {
 		return false
@@ -160,4 +192,12 @@ func (i *Interpreter) checkNumberOperands(operator token.Token, left any, right 
 	}
 
 	return 0, 0, gloxError.NewRuntimeError(operator, "Operands must be numbers.")
+}
+
+func stringValue(result any) string {
+	if result == nil {
+		return "nil"
+	}
+
+	return fmt.Sprintf("%#v", result)
 }

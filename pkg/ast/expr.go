@@ -32,3 +32,9 @@ type UnaryExpr struct {
 }
 
 func (e *UnaryExpr) expr() {}
+
+type VariableExpression struct {
+	Name token.Token
+}
+
+func (e *VariableExpression) expr() {}

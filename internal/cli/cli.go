@@ -13,7 +13,7 @@ import (
 
 func StartRepl(in io.Reader, out io.Writer) {
 	scanner := bufio.NewScanner(in)
-	interpreter := interpreter.New()
+	interpreter := interpreter.New(out)
 
 	for {
 		fmt.Fprint(out, "> ")
@@ -24,28 +24,7 @@ func StartRepl(in io.Reader, out io.Writer) {
 		}
 
 		line := scanner.Text()
-		lexer := lexer.New(line)
-		var tokens []token.Token
-		for token, err := range lexer.Tokens() {
-			if err != nil {
-				report(err)
-			} else {
-				tokens = append(tokens, token)
-			}
-		}
-		parser := parser.New(tokens)
-		expr, err := parser.Parse()
-		if err != nil {
-			report(err)
-			continue
-		}
-
-		result, err := interpreter.Interpret(expr)
-		if err != nil {
-			report(err)
-			continue
-		}
-		fmt.Println(stringResult(result))
+		run(line, interpreter)
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -59,9 +38,24 @@ func RunFile(name string) error {
 		return err
 	}
 
+	interpreter := interpreter.New(os.Stdout)
+	err = run(string(data), interpreter)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func report(err error) {
+	fmt.Fprintln(os.Stderr, err)
+}
+
+func run(source string, interpreter *interpreter.Interpreter) error {
 	hadError := false
 	var firstError error = nil
-	lexer := lexer.New(string(data))
+
+	lexer := lexer.New(source)
 	var tokens []token.Token
 	for token, err := range lexer.Tokens() {
 		if err != nil {
@@ -77,17 +71,7 @@ func RunFile(name string) error {
 	}
 
 	parser := parser.New(tokens)
-	expr, err := parser.Parse()
-	if err != nil {
-		report(err)
-		hadError = true
-		if firstError == nil {
-			firstError = err
-		}
-	}
-
-	interpreter := interpreter.New()
-	result, err := interpreter.Interpret(expr)
+	stmts, err := parser.Parse()
 	if err != nil {
 		report(err)
 		hadError = true
@@ -100,19 +84,14 @@ func RunFile(name string) error {
 		return firstError
 	}
 
-	fmt.Println(stringResult(result))
-
-	return nil
-}
-
-func report(err error) {
-	fmt.Fprintln(os.Stderr, err)
-}
-
-func stringResult(result any) string {
-	if result == nil {
-		return "nil"
+	err = interpreter.Interpret(stmts)
+	if err != nil {
+		report(err)
+		hadError = true
+		if firstError == nil {
+			firstError = err
+		}
 	}
 
-	return fmt.Sprintf("%#v", result)
+	return firstError
 }
