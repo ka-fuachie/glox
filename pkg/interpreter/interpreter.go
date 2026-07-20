@@ -9,11 +9,12 @@ import (
 )
 
 type Interpreter struct {
-	out io.Writer
+	out         io.Writer
+	environment *Environment
 }
 
 func New(out io.Writer) *Interpreter {
-	return &Interpreter{out: out}
+	return &Interpreter{out: out, environment: NewEnvironment()}
 }
 
 func (i *Interpreter) Interpret(stmts []ast.Stmt) error {
@@ -29,6 +30,16 @@ func (i *Interpreter) Interpret(stmts []ast.Stmt) error {
 
 func (i *Interpreter) evaluate(expr ast.Expr) (any, error) {
 	switch e := expr.(type) {
+	case *ast.AssignExpr:
+		value, err := i.evaluate(e.Expression)
+		if err != nil {
+			return nil, err
+		}
+		err = i.environment.Assign(e.Name, value)
+		if err != nil {
+			return nil, err
+		}
+		return value, nil
 	case *ast.LiteralExpr:
 		return e.Value, nil
 	case *ast.GroupingExpr:
@@ -51,6 +62,12 @@ func (i *Interpreter) evaluate(expr ast.Expr) (any, error) {
 		default:
 			panic("invalid operator")
 		}
+	case *ast.VariableExpression:
+		value, err := i.environment.Get(e.Name)
+		if err != nil {
+			return nil, err
+		}
+		return value, nil
 	case *ast.BinaryExpr:
 		left, err := i.evaluate(e.Left)
 		if err != nil {
@@ -138,22 +155,35 @@ func (i *Interpreter) evaluate(expr ast.Expr) (any, error) {
 	}
 }
 
-func (i *Interpreter) execute(expr ast.Stmt) error {
-	switch e := expr.(type) {
+func (i *Interpreter) execute(stmt ast.Stmt) error {
+	switch s := stmt.(type) {
 	case *ast.ExpressionStmt:
-		_, err := i.evaluate(e.Expression)
+		_, err := i.evaluate(s.Expression)
 		if err != nil {
 			return err
 		}
 
 		return nil
 	case *ast.PrintStmt:
-		value, err := i.evaluate(e.Expression)
+		value, err := i.evaluate(s.Expression)
 		if err != nil {
 			return err
 		}
 
 		fmt.Fprintln(i.out, stringValue(value))
+		return nil
+	case *ast.VarStmt:
+		var value any
+
+		if s.Initializer != nil {
+			var err error
+			value, err = i.evaluate(s.Initializer)
+			if err != nil {
+				return err
+			}
+		}
+
+		i.environment.Define(s.Name.Lexeme, value)
 		return nil
 	default:
 		panic("invalid statement")
@@ -199,5 +229,5 @@ func stringValue(result any) string {
 		return "nil"
 	}
 
-	return fmt.Sprintf("%#v", result)
+	return fmt.Sprintf("%v", result)
 }

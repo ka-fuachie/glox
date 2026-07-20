@@ -92,7 +92,7 @@ func (p *Parser) synchronize() {
 }
 
 func (p *Parser) expression() (ast.Expr, error) {
-	return p.equality()
+	return p.assignment()
 }
 
 func (p *Parser) declaration() (ast.Stmt, error) {
@@ -156,6 +156,30 @@ func (p *Parser) varDeclaration() (ast.Stmt, error) {
 	_, err = p.consume(token.SEMICOLON, "Expect ';' after variable declaration.")
 
 	return &ast.VarStmt{Name: name, Initializer: initializer}, nil
+}
+
+func (p *Parser) assignment() (ast.Expr, error) {
+	expr, err := p.equality()
+	if err != nil {
+		return nil, err
+	}
+
+	if p.match(token.EQUAL) {
+		equals := p.previous()
+		value, err := p.assignment()
+		if err != nil {
+			return nil, err
+		}
+
+		if e, ok := expr.(*ast.VariableExpression); ok {
+			name := e.Name
+			return &ast.AssignExpr{Name: name, Expression: value}, nil
+		}
+
+		return nil, gloxError.TokenStaticError(equals, "Invalid assignment target.")
+	}
+
+	return expr, err
 }
 
 func (p *Parser) equality() (ast.Expr, error) {

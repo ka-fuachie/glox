@@ -6,6 +6,13 @@ type Expr interface {
 	expr()
 }
 
+type AssignExpr struct {
+	Name       token.Token
+	Expression Expr
+}
+
+func (e *AssignExpr) expr() {}
+
 type BinaryExpr struct {
 	Left     Expr
 	Operator token.Token
