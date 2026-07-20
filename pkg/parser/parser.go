@@ -67,7 +67,7 @@ func (p *Parser) consume(tokenType token.TokenType, message string) (token.Token
 		return p.advance(), nil
 	}
 
-	return token.Token{}, gloxError.TokenError(p.peek(), message)
+	return token.Token{}, gloxError.TokenStaticError(p.peek(), message)
 }
 
 func (p *Parser) synchronize() {
@@ -203,5 +203,5 @@ func (p *Parser) primary() (ast.Expr, error) {
 		return &ast.GroupingExpr{Expression: expr}, nil
 	}
 
-	return nil, gloxError.TokenError(p.peek(), "Expect expression.")
+	return nil, gloxError.TokenStaticError(p.peek(), "Expect expression.")
 }

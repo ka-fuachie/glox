@@ -18,9 +18,12 @@ func main() {
 	} else if len(args) == 1 {
 		err := cli.RunFile(args[0])
 		if err != nil {
-			if _, ok := errors.AsType[*gloxerror.EvalError](err); ok {
+			if _, ok := errors.AsType[*gloxerror.StaticError](err); ok {
 				fmt.Fprintln(os.Stderr, err)
 				os.Exit(65)
+			} else if _, ok := errors.AsType[*gloxerror.RuntimeError](err); ok {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(70)
 			} else {
 				log.Fatal(err)
 			}

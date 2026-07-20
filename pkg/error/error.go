@@ -2,24 +2,25 @@ package error
 
 import (
 	"fmt"
+	"glox/pkg/token"
 	gloxToken "glox/pkg/token"
 )
 
-type EvalError struct {
+type StaticError struct {
 	Line    int
 	Where   string
 	Message string
 }
 
-func (e *EvalError) Error() string {
+func (e *StaticError) Error() string {
 	return fmt.Sprintf("[line: %d] Error%s: %s", e.Line, e.Where, e.Message)
 }
 
-func LineError(line int, message string) *EvalError {
-	return &EvalError{Line: line, Message: message}
+func LineStaticError(line int, message string) *StaticError {
+	return &StaticError{Line: line, Message: message}
 }
 
-func TokenError(token gloxToken.Token, message string) *EvalError {
+func TokenStaticError(token gloxToken.Token, message string) *StaticError {
 	var where string
 	if token.Type == gloxToken.EOF {
 		where = " at end"
@@ -27,5 +28,18 @@ func TokenError(token gloxToken.Token, message string) *EvalError {
 		where = fmt.Sprintf(" at '%s'", token.Lexeme)
 	}
 
-	return &EvalError{Line: token.Line, Where: where, Message: message}
+	return &StaticError{Line: token.Line, Where: where, Message: message}
+}
+
+type RuntimeError struct {
+	Token   token.Token
+	Message string
+}
+
+func (e *RuntimeError) Error() string {
+	return fmt.Sprintf("%s\n[line %d]", e.Message, e.Token.Line)
+}
+
+func NewRuntimeError(token token.Token, message string) *RuntimeError {
+	return &RuntimeError{Token: token, Message: message}
 }

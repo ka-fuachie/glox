@@ -12,6 +12,9 @@ func Print(expr Expr) string {
 	case *GroupingExpr:
 		return parenthesize("group", e.Expression)
 	case *LiteralExpr:
+		if e.Value == nil {
+			return "nil"
+		}
 		return fmt.Sprintf("%v", e.Value)
 	case *UnaryExpr:
 		return parenthesize(e.Operator.Lexeme, e.Right)
@@ -38,6 +41,9 @@ func PrintRPN(expr Expr) string {
 	case *GroupingExpr:
 		return PrintRPN(e.Expression)
 	case *LiteralExpr:
+		if e.Value == nil {
+			return "nil"
+		}
 		return fmt.Sprintf("%v", e.Value)
 	case *UnaryExpr:
 		return fmt.Sprintf("%s %s", PrintRPN(e.Right), e.Operator.Lexeme)

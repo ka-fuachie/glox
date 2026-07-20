@@ -3,7 +3,7 @@ package cli
 import (
 	"bufio"
 	"fmt"
-	"glox/pkg/ast"
+	"glox/pkg/interpreter"
 	"glox/pkg/lexer"
 	"glox/pkg/parser"
 	"glox/pkg/token"
@@ -13,6 +13,7 @@ import (
 
 func StartRepl(in io.Reader, out io.Writer) {
 	scanner := bufio.NewScanner(in)
+	interpreter := interpreter.New()
 
 	for {
 		fmt.Fprint(out, "> ")
@@ -39,7 +40,12 @@ func StartRepl(in io.Reader, out io.Writer) {
 			continue
 		}
 
-		fmt.Fprintln(out, ast.Print(expr))
+		result, err := interpreter.Interpret(expr)
+		if err != nil {
+			report(err)
+			continue
+		}
+		fmt.Println(stringResult(result))
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -80,14 +86,33 @@ func RunFile(name string) error {
 		}
 	}
 
+	interpreter := interpreter.New()
+	result, err := interpreter.Interpret(expr)
+	if err != nil {
+		report(err)
+		hadError = true
+		if firstError == nil {
+			firstError = err
+		}
+	}
+
 	if hadError {
 		return firstError
 	}
 
-	fmt.Println(ast.Print(expr))
+	fmt.Println(stringResult(result))
+
 	return nil
 }
 
 func report(err error) {
 	fmt.Fprintln(os.Stderr, err)
+}
+
+func stringResult(result any) string {
+	if result == nil {
+		return "nil"
+	}
+
+	return fmt.Sprintf("%#v", result)
 }

@@ -118,7 +118,7 @@ func (l *Lexer) NextToken() (token.Token, error) {
 			return l.identifier()
 		}
 
-		return token.Token{}, gloxError.LineError(l.line, "Unexpected character.")
+		return token.Token{}, gloxError.LineStaticError(l.line, "Unexpected character.")
 	}
 }
 
@@ -192,7 +192,7 @@ func (l *Lexer) string() (token.Token, error) {
 	}
 
 	if l.isAtEnd() {
-		return token.Token{}, gloxError.LineError(l.line, "Unterminated string.")
+		return token.Token{}, gloxError.LineStaticError(l.line, "Unterminated string.")
 	}
 
 	l.advance() // past closing "
@@ -273,7 +273,7 @@ func (l *Lexer) blockComment() (token.Token, error) {
 	}
 
 	if l.isAtEnd() {
-		return token.Token{}, gloxError.LineError(l.line, "Unterminated block comment.")
+		return token.Token{}, gloxError.LineStaticError(l.line, "Unterminated block comment.")
 	}
 
 	// for ending "*/"
