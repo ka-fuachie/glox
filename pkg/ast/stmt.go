@@ -38,3 +38,10 @@ type VarStmt struct {
 }
 
 func (s *VarStmt) stmt() {}
+
+type WhileStmt struct {
+	Condition Expr
+	Body      Stmt
+}
+
+func (s *WhileStmt) stmt() {}

@@ -231,6 +231,24 @@ func (i *Interpreter) execute(stmt ast.Stmt) error {
 
 		i.environment.Define(s.Name.Lexeme, value)
 		return nil
+	case *ast.WhileStmt:
+		for {
+			condition, err := i.evaluate(s.Condition)
+			if err != nil {
+				return err
+			}
+
+			if !i.isTruthy(condition) {
+				break
+			}
+
+			err = i.execute(s.Body)
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
 	default:
 		panic("invalid statement")
 	}
