@@ -11,21 +11,21 @@ import (
 type Interpreter struct {
 	out         io.Writer
 	environment *Environment
+	reporter    *gloxError.Reporter
 }
 
-func New(out io.Writer) *Interpreter {
-	return &Interpreter{out: out, environment: NewEnvironment(nil)}
+func New(out io.Writer, reporter *gloxError.Reporter) *Interpreter {
+	return &Interpreter{out: out, environment: NewEnvironment(nil), reporter: reporter}
 }
 
-func (i *Interpreter) Interpret(stmts []ast.Stmt) error {
+func (i *Interpreter) Interpret(stmts []ast.Stmt) {
 	for _, stmt := range stmts {
 		err := i.execute(stmt)
 		if err != nil {
-			return err
+			i.reporter.Report(err)
+			break
 		}
 	}
-
-	return nil
 }
 
 func (i *Interpreter) evaluate(expr ast.Expr) (any, error) {

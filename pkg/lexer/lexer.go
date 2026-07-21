@@ -10,17 +10,23 @@ import (
 type Lexer struct {
 	source               []rune
 	start, current, line int
+	reporter             *gloxError.Reporter
 }
 
-func New(source string) *Lexer {
-	return &Lexer{source: []rune(source), start: 0, current: 0, line: 1}
+func New(source string, reporter *gloxError.Reporter) *Lexer {
+	return &Lexer{source: []rune(source), start: 0, current: 0, line: 1, reporter: reporter}
 }
 
-func (l *Lexer) Tokens() iter.Seq2[token.Token, error] {
-	return func(yield func(token.Token, error) bool) {
+func (l *Lexer) Tokens() iter.Seq[token.Token] {
+	return func(yield func(token.Token) bool) {
 		for {
 			tok, err := l.NextToken()
-			if !yield(tok, err) {
+			if err != nil {
+				l.reporter.Report(err)
+				continue
+			}
+
+			if !yield(tok) {
 				break
 			}
 
