@@ -14,7 +14,7 @@ type Interpreter struct {
 }
 
 func New(out io.Writer) *Interpreter {
-	return &Interpreter{out: out, environment: NewEnvironment()}
+	return &Interpreter{out: out, environment: NewEnvironment(nil)}
 }
 
 func (i *Interpreter) Interpret(stmts []ast.Stmt) error {
@@ -157,6 +157,8 @@ func (i *Interpreter) evaluate(expr ast.Expr) (any, error) {
 
 func (i *Interpreter) execute(stmt ast.Stmt) error {
 	switch s := stmt.(type) {
+	case *ast.BlockStmt:
+		return i.executeBlock(s.Statements, NewEnvironment(i.environment))
 	case *ast.ExpressionStmt:
 		_, err := i.evaluate(s.Expression)
 		if err != nil {
@@ -188,6 +190,22 @@ func (i *Interpreter) execute(stmt ast.Stmt) error {
 	default:
 		panic("invalid statement")
 	}
+}
+
+func (i *Interpreter) executeBlock(stmts []ast.Stmt, environment *Environment) error {
+	prevEnvironment := i.environment
+	i.environment = environment
+	defer func() {
+		i.environment = prevEnvironment
+	}()
+
+	for _, stmt := range stmts {
+		err := i.execute(stmt)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (i *Interpreter) isTruthy(val any) bool {

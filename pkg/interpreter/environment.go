@@ -7,16 +7,21 @@ import (
 )
 
 type Environment struct {
-	values map[string]any
+	enclosing *Environment
+	values    map[string]any
 }
 
-func NewEnvironment() *Environment {
-	return &Environment{values: make(map[string]any)}
+func NewEnvironment(enclosing *Environment) *Environment {
+	return &Environment{values: make(map[string]any), enclosing: enclosing}
 }
 
 func (env *Environment) Get(name token.Token) (any, error) {
 	if value, ok := env.values[name.Lexeme]; ok {
 		return value, nil
+	}
+
+	if env.enclosing != nil {
+		return env.enclosing.Get(name)
 	}
 
 	return nil, gloxError.NewRuntimeError(name, fmt.Sprintf("Undefined variable '%s'.", name.Lexeme))
@@ -26,6 +31,10 @@ func (env *Environment) Assign(name token.Token, value any) error {
 	if _, ok := env.values[name.Lexeme]; ok {
 		env.values[name.Lexeme] = value
 		return nil
+	}
+
+	if env.enclosing != nil {
+		return env.enclosing.Assign(name, value)
 	}
 
 	return gloxError.NewRuntimeError(name, fmt.Sprintf("Undefined variable '%s'.", name.Lexeme))
