@@ -107,6 +107,10 @@ func (p *Parser) declaration() (ast.Stmt, error) {
 }
 
 func (p *Parser) statement() (ast.Stmt, error) {
+	if p.match(token.IF) {
+		return p.ifStatement()
+	}
+
 	if p.match(token.PRINT) {
 		return p.printStatement()
 	}
@@ -155,6 +159,38 @@ func (p *Parser) block() ([]ast.Stmt, error) {
 	return statements, nil
 }
 
+func (p *Parser) ifStatement() (ast.Stmt, error) {
+	_, err := p.consume(token.LEFT_PAREN, "Expect '(' after if.")
+	if err != nil {
+		return nil, err
+	}
+
+	condition, err := p.expression()
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = p.consume(token.RIGHT_PAREN, "Expect ')' after if condition.")
+	if err != nil {
+		return nil, err
+	}
+
+	thenBranch, err := p.statement()
+	if err != nil {
+		return nil, err
+	}
+	var elseBranch ast.Stmt
+
+	if p.match(token.ELSE) {
+		elseBranch, err = p.statement()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &ast.IfStmt{Condition: condition, ThenBranch: thenBranch, ElseBranch: elseBranch}, nil
+}
+
 func (p *Parser) printStatement() (ast.Stmt, error) {
 	value, err := p.expression()
 	if err != nil {
@@ -189,7 +225,7 @@ func (p *Parser) varDeclaration() (ast.Stmt, error) {
 }
 
 func (p *Parser) assignment() (ast.Expr, error) {
-	expr, err := p.equality()
+	expr, err := p.or()
 	if err != nil {
 		return nil, err
 	}
@@ -210,6 +246,47 @@ func (p *Parser) assignment() (ast.Expr, error) {
 	}
 
 	return expr, err
+}
+
+func (p *Parser) or() (ast.Expr, error) {
+	expr, err := p.and()
+	if err != nil {
+		return nil, err
+	}
+
+	for p.match(token.OR) {
+		operator := p.previous()
+		right, err := p.and()
+		if err != nil {
+			return nil, err
+		}
+
+		expr = &ast.LogicalExpr{Left: expr, Operator: operator, Right: right}
+	}
+
+	return expr, nil
+}
+
+func (p *Parser) and() (ast.Expr, error) {
+	expr, err := p.equality()
+	if err != nil {
+		return nil, err
+	}
+
+	for p.match(token.AND) {
+		operator := p.previous()
+		if err != nil {
+			return nil, err
+		}
+		right, err := p.equality()
+		if err != nil {
+			return nil, err
+		}
+
+		expr = &ast.LogicalExpr{Left: expr, Operator: operator, Right: right}
+	}
+
+	return expr, nil
 }
 
 func (p *Parser) equality() (ast.Expr, error) {

@@ -33,6 +33,14 @@ type LiteralExpr struct {
 
 func (e *LiteralExpr) expr() {}
 
+type LogicalExpr struct {
+	Left     Expr
+	Operator token.Token
+	Right    Expr
+}
+
+func (e *LogicalExpr) expr() {}
+
 type UnaryExpr struct {
 	Operator token.Token
 	Right    Expr

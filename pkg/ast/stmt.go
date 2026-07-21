@@ -18,6 +18,14 @@ type ExpressionStmt struct {
 
 func (s *ExpressionStmt) stmt() {}
 
+type IfStmt struct {
+	Condition  Expr
+	ThenBranch Stmt
+	ElseBranch Stmt
+}
+
+func (s *IfStmt) stmt() {}
+
 type PrintStmt struct {
 	Expression Expr
 }

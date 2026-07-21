@@ -42,6 +42,31 @@ func (i *Interpreter) evaluate(expr ast.Expr) (any, error) {
 		return value, nil
 	case *ast.LiteralExpr:
 		return e.Value, nil
+	case *ast.LogicalExpr:
+		left, err := i.evaluate(e.Left)
+		if err != nil {
+			return nil, err
+		}
+
+		switch e.Operator.Type {
+		case token.AND:
+			if !i.isTruthy(left) {
+				return left, nil
+			}
+		case token.OR:
+			if i.isTruthy(left) {
+				return left, nil
+			}
+		default:
+			panic("invalid operator")
+		}
+
+		right, err := i.evaluate(e.Right)
+		if err != nil {
+			return nil, err
+		}
+
+		return right, nil
 	case *ast.GroupingExpr:
 		return i.evaluate(e.Expression)
 	case *ast.UnaryExpr:
@@ -163,6 +188,25 @@ func (i *Interpreter) execute(stmt ast.Stmt) error {
 		_, err := i.evaluate(s.Expression)
 		if err != nil {
 			return err
+		}
+
+		return nil
+	case *ast.IfStmt:
+		condition, err := i.evaluate(s.Condition)
+		if err != nil {
+			return err
+		}
+
+		if i.isTruthy(condition) {
+			err := i.execute(s.ThenBranch)
+			if err != nil {
+				return err
+			}
+		} else {
+			err := i.execute(s.ElseBranch)
+			if err != nil {
+				return err
+			}
 		}
 
 		return nil
