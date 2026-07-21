@@ -4,6 +4,7 @@ import (
 	"glox/pkg/ast"
 	gloxError "glox/pkg/error"
 	"glox/pkg/token"
+	"iter"
 	"slices"
 )
 
@@ -16,17 +17,19 @@ func New(tokens []token.Token) *Parser {
 	return &Parser{tokens: tokens, current: 0}
 }
 
-func (p *Parser) Parse() ([]ast.Stmt, error) {
-	var statements []ast.Stmt
-	for !p.isAtEnd() {
-		stmt, err := p.declaration()
-		if err != nil {
-			return []ast.Stmt{}, err
-		}
-		statements = append(statements, stmt)
-	}
+func (p *Parser) Parse() iter.Seq2[ast.Stmt, error] {
+	return func(yield func(ast.Stmt, error) bool) {
+		for !p.isAtEnd() {
+			stmt, err := p.declaration()
+			if !yield(stmt, err) {
+				break
+			}
 
-	return statements, nil
+			if err != nil {
+				p.synchronize()
+			}
+		}
+	}
 }
 
 func (p *Parser) match(tokenTypes ...token.TokenType) bool {

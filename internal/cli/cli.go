@@ -3,6 +3,7 @@ package cli
 import (
 	"bufio"
 	"fmt"
+	"glox/pkg/ast"
 	"glox/pkg/interpreter"
 	"glox/pkg/lexer"
 	"glox/pkg/parser"
@@ -71,20 +72,25 @@ func run(source string, interpreter *interpreter.Interpreter) error {
 	}
 
 	parser := parser.New(tokens)
-	stmts, err := parser.Parse()
-	if err != nil {
-		report(err)
-		hadError = true
-		if firstError == nil {
-			firstError = err
+	var statements []ast.Stmt
+	for stmt, err := range parser.Parse() {
+		if err != nil {
+			report(err)
+			hadError = true
+			if firstError == nil {
+				firstError = err
+			}
+			continue
 		}
+
+		statements = append(statements, stmt)
 	}
 
 	if hadError {
 		return firstError
 	}
 
-	err = interpreter.Interpret(stmts)
+	err := interpreter.Interpret(statements)
 	if err != nil {
 		report(err)
 		hadError = true
