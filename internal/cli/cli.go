@@ -3,19 +3,17 @@ package cli
 import (
 	"bufio"
 	"fmt"
-	gloxError "glox/pkg/error"
 	"glox/pkg/interpreter"
 	"glox/pkg/lexer"
 	"glox/pkg/parser"
+	"glox/pkg/token"
 	"io"
 	"os"
-	"slices"
 )
 
 func StartRepl(in io.Reader, out io.Writer) {
 	scanner := bufio.NewScanner(in)
-	errorReporter := gloxError.NewReporter(func(_ error) {})
-	interpreter := interpreter.New(out, errorReporter)
+	interpreter := interpreter.New(out)
 
 	for {
 		fmt.Fprint(out, "> ")
@@ -26,7 +24,7 @@ func StartRepl(in io.Reader, out io.Writer) {
 		}
 
 		line := scanner.Text()
-		run(line, interpreter, errorReporter)
+		run(line, interpreter)
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -34,48 +32,66 @@ func StartRepl(in io.Reader, out io.Writer) {
 	}
 }
 
-func RunFile(name string) (bool, bool, error) {
+func RunFile(name string) error {
 	data, err := os.ReadFile(name)
 	if err != nil {
-		return false, false, err
+		return err
 	}
 
-	hadError := false
-	hadRuntimeError := false
-	staticErrorReporter := gloxError.NewReporter(func(_ error) {
-		hadError = true
-	})
-	runtimeErrorReporter := gloxError.NewReporter(func(_ error) {
-		hadRuntimeError = true
-	})
-
-	interpreter := interpreter.New(os.Stdout, runtimeErrorReporter)
-	run(string(data), interpreter, staticErrorReporter)
-	if hadError || hadRuntimeError {
-		return hadError, hadRuntimeError, nil
+	interpreter := interpreter.New(os.Stdout)
+	err = run(string(data), interpreter)
+	if err != nil {
+		return err
 	}
 
-	return false, false, nil
+	return nil
 }
 
-func run(
-	source string,
-	interpreter *interpreter.Interpreter,
-	staticErrorReporter *gloxError.Reporter,
-) (bool, bool) {
+func report(err error) {
+	fmt.Fprintln(os.Stderr, err)
+}
+
+func run(source string, interpreter *interpreter.Interpreter) error {
 	hadError := false
-	hadRuntimeError := false
+	var firstError error = nil
 
-	lexer := lexer.New(source, staticErrorReporter)
-	tokens := slices.Collect(lexer.Tokens())
-	parser := parser.New(tokens, staticErrorReporter)
-	stmts := parser.Parse()
+	lexer := lexer.New(source)
+	var tokens []token.Token
+	for token, err := range lexer.Tokens() {
+		if err != nil {
+			report(err)
+			hadError = true
+			if firstError == nil {
+				firstError = err
+			}
+			continue
+		}
 
-	if hadError {
-		return hadError, hadRuntimeError
+		tokens = append(tokens, token)
 	}
 
-	interpreter.Interpret(stmts)
+	parser := parser.New(tokens)
+	stmts, err := parser.Parse()
+	if err != nil {
+		report(err)
+		hadError = true
+		if firstError == nil {
+			firstError = err
+		}
+	}
 
-	return hadError, hadRuntimeError
+	if hadError {
+		return firstError
+	}
+
+	err = interpreter.Interpret(stmts)
+	if err != nil {
+		report(err)
+		hadError = true
+		if firstError == nil {
+			firstError = err
+		}
+	}
+
+	return firstError
 }

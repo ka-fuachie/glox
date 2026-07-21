@@ -8,29 +8,25 @@ import (
 )
 
 type Parser struct {
-	tokens   []token.Token
-	current  int
-	reporter *gloxError.Reporter
+	tokens  []token.Token
+	current int
 }
 
-func New(tokens []token.Token, reporter *gloxError.Reporter) *Parser {
-	return &Parser{tokens: tokens, current: 0, reporter: reporter}
+func New(tokens []token.Token) *Parser {
+	return &Parser{tokens: tokens, current: 0}
 }
 
-func (p *Parser) Parse() []ast.Stmt {
+func (p *Parser) Parse() ([]ast.Stmt, error) {
 	var statements []ast.Stmt
-
 	for !p.isAtEnd() {
 		stmt, err := p.declaration()
 		if err != nil {
-			p.reporter.Report(err)
-			p.synchronize()
-			continue
+			return []ast.Stmt{}, err
 		}
 		statements = append(statements, stmt)
 	}
 
-	return statements
+	return statements, nil
 }
 
 func (p *Parser) match(tokenTypes ...token.TokenType) bool {

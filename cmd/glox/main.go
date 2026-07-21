@@ -1,8 +1,10 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"glox/internal/cli"
+	gloxerror "glox/pkg/error"
 	"log"
 	"os"
 )
@@ -14,15 +16,15 @@ func main() {
 		fmt.Println("Usage: glox [file]")
 		os.Exit(64)
 	} else if len(args) == 1 {
-		hadError, hadRuntimeError, err := cli.RunFile(args[0])
+		err := cli.RunFile(args[0])
 		if err != nil {
-			log.Fatal(err)
-		}
-
-		if hadError {
-			os.Exit(65)
-		} else if hadRuntimeError {
-			os.Exit(70)
+			if _, ok := errors.AsType[*gloxerror.StaticError](err); ok {
+				os.Exit(65)
+			} else if _, ok := errors.AsType[*gloxerror.RuntimeError](err); ok {
+				os.Exit(70)
+			} else {
+				log.Fatal(err)
+			}
 		}
 	} else {
 		cli.StartRepl(os.Stdin, os.Stdout)
