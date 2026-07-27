@@ -21,6 +21,14 @@ type BinaryExpr struct {
 
 func (e *BinaryExpr) expr() {}
 
+type CallExpr struct {
+	Callee    Expr
+	Paren     token.Token
+	Arguments []Expr
+}
+
+func (e *CallExpr) expr() {}
+
 type GroupingExpr struct {
 	Expression Expr
 }

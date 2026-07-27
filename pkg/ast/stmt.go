@@ -18,6 +18,14 @@ type ExpressionStmt struct {
 
 func (s *ExpressionStmt) stmt() {}
 
+type FunctionStmt struct {
+	Name   token.Token
+	Params []token.Token
+	Body   []Stmt
+}
+
+func (s *FunctionStmt) stmt() {}
+
 type IfStmt struct {
 	Condition  Expr
 	ThenBranch Stmt
@@ -31,6 +39,13 @@ type PrintStmt struct {
 }
 
 func (s *PrintStmt) stmt() {}
+
+type ReturnStmt struct {
+	Keyword token.Token
+	Value   Expr
+}
+
+func (*ReturnStmt) stmt() {}
 
 type VarStmt struct {
 	Name        token.Token

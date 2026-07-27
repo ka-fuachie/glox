@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"fmt"
 	"glox/pkg/ast"
 	gloxError "glox/pkg/error"
 	"glox/pkg/token"
@@ -99,6 +100,10 @@ func (p *Parser) expression() (ast.Expr, error) {
 }
 
 func (p *Parser) declaration() (ast.Stmt, error) {
+	if p.match(token.FUN) {
+		return p.function("function")
+	}
+
 	if p.match(token.VAR) {
 		return p.varDeclaration()
 	}
@@ -117,6 +122,10 @@ func (p *Parser) statement() (ast.Stmt, error) {
 
 	if p.match(token.PRINT) {
 		return p.printStatement()
+	}
+
+	if p.match(token.RETURN) {
+		return p.returnStatement()
 	}
 
 	if p.match(token.WHILE) {
@@ -146,6 +155,55 @@ func (p *Parser) expressionStatement() (ast.Stmt, error) {
 	}
 
 	return &ast.ExpressionStmt{Expression: expr}, nil
+}
+
+func (p *Parser) function(kind string) (*ast.FunctionStmt, error) {
+	name, err := p.consume(token.IDENTIFIER, fmt.Sprintf("Expect %s name.", kind))
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = p.consume(token.LEFT_PAREN, fmt.Sprintf("Expect '(' after %s name.", kind))
+	if err != nil {
+		return nil, err
+	}
+
+	var parameters []token.Token
+	if !p.check(token.RIGHT_PAREN) {
+		for {
+			if len(parameters) >= 255 {
+				// TODO: Should report but not throw
+				return nil, gloxError.TokenStaticError(p.peek(), "Can't have more than 255 parameters.")
+			}
+
+			param, err := p.consume(token.IDENTIFIER, "Expect parameter name.")
+			if err != nil {
+				return nil, err
+			}
+			parameters = append(parameters, param)
+
+			if !p.match(token.COMMA) {
+				break
+			}
+		}
+	}
+
+	_, err = p.consume(token.RIGHT_PAREN, "Expect ')' after paraemeters.")
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = p.consume(token.LEFT_BRACE, fmt.Sprintf("Expect '{' before %s body.", kind))
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := p.block()
+	if err != nil {
+		return nil, err
+	}
+
+	return &ast.FunctionStmt{Name: name, Params: parameters, Body: body}, nil
 }
 
 func (p *Parser) block() ([]ast.Stmt, error) {
@@ -294,6 +352,26 @@ func (p *Parser) printStatement() (ast.Stmt, error) {
 	return &ast.PrintStmt{Expression: value}, nil
 }
 
+func (p *Parser) returnStatement() (ast.Stmt, error) {
+	keyword := p.previous()
+
+	var value ast.Expr
+	if !p.check(token.SEMICOLON) {
+		var err error
+		value, err = p.expression()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	_, err := p.consume(token.SEMICOLON, "Expect ';' after return value.")
+	if err != nil {
+		return nil, err
+	}
+
+	return &ast.ReturnStmt{Keyword: keyword, Value: value}, nil
+}
+
 func (p *Parser) varDeclaration() (ast.Stmt, error) {
 	name, err := p.consume(token.IDENTIFIER, "Expect variable name.")
 	if err != nil {
@@ -355,6 +433,7 @@ func (p *Parser) assignment() (ast.Expr, error) {
 			return &ast.AssignExpr{Name: name, Expression: value}, nil
 		}
 
+		// TODO: Should report but not throw
 		return nil, gloxError.TokenStaticError(equals, "Invalid assignment target.")
 	}
 
@@ -484,7 +563,57 @@ func (p *Parser) unary() (ast.Expr, error) {
 		return &ast.UnaryExpr{Operator: operator, Right: right}, nil
 	}
 
-	return p.primary()
+	return p.call()
+}
+
+func (p *Parser) call() (ast.Expr, error) {
+	expr, err := p.primary()
+	if err != nil {
+		return nil, err
+	}
+
+	for {
+		if p.match(token.LEFT_PAREN) {
+			expr, err = p.finishCall(expr)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			break
+		}
+	}
+
+	return expr, nil
+}
+
+func (p *Parser) finishCall(expr ast.Expr) (ast.Expr, error) {
+	var arguments []ast.Expr
+
+	if !p.check(token.RIGHT_PAREN) {
+		for {
+			if len(arguments) >= 255 {
+				// TODO: Should report but not throw
+				return nil, gloxError.TokenStaticError(p.peek(), "can't have more than 255 arguments.")
+			}
+
+			arg, err := p.expression()
+			if err != nil {
+				return nil, err
+			}
+			arguments = append(arguments, arg)
+
+			if !p.match(token.COMMA) {
+				break
+			}
+		}
+	}
+
+	paren, err := p.consume(token.RIGHT_PAREN, "Expect ')' after arguments.")
+	if err != nil {
+		return nil, err
+	}
+
+	return &ast.CallExpr{Callee: expr, Paren: paren, Arguments: arguments}, nil
 }
 
 func (p *Parser) primary() (ast.Expr, error) {

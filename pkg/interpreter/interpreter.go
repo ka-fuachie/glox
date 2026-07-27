@@ -6,15 +6,31 @@ import (
 	gloxError "glox/pkg/error"
 	"glox/pkg/token"
 	"io"
+	"time"
 )
 
 type Interpreter struct {
 	out         io.Writer
+	globals     *Environment
 	environment *Environment
 }
 
 func New(out io.Writer) *Interpreter {
-	return &Interpreter{out: out, environment: NewEnvironment(nil)}
+	globals := NewEnvironment(nil)
+	globals.Define("clock", &Clock{})
+
+	return &Interpreter{out: out, globals: globals, environment: globals}
+}
+
+type Clock struct{}
+
+func (*Clock) Arity() int { return 0 }
+func (*Clock) Call(i *Interpreter, arguments []any) (any, error) {
+	now := time.Now()
+	return float64(now.UnixMilli()) / 1000, nil
+}
+func (*Clock) String() string {
+	return "<native fn>"
 }
 
 func (i *Interpreter) Interpret(stmts []ast.Stmt) error {
@@ -172,9 +188,36 @@ func (i *Interpreter) evaluate(expr ast.Expr) (any, error) {
 			}
 
 			return nil, gloxError.NewRuntimeError(e.Operator, "Operands must be two numbers or two strings.")
+
 		default:
 			panic("invalid operator")
 		}
+	case *ast.CallExpr:
+		callee, err := i.evaluate(e.Callee)
+		if err != nil {
+			return nil, err
+		}
+
+		var arguments []any
+		for _, argument := range e.Arguments {
+			arg, err := i.evaluate(argument)
+			if err != nil {
+				return nil, err
+			}
+			arguments = append(arguments, arg)
+		}
+
+		function, ok := callee.(LoxCallable)
+		if !ok {
+			return nil, gloxError.NewRuntimeError(e.Paren, "Can only call functions and classes.")
+		}
+
+		if len(arguments) != function.Arity() {
+			return nil, gloxError.NewRuntimeError(e.Paren,
+				fmt.Sprintf("Expected %d arguments but got %d.", function.Arity(), len(arguments)))
+		}
+
+		return function.Call(i, arguments)
 	default:
 		panic("invalid expression")
 	}
@@ -190,6 +233,10 @@ func (i *Interpreter) execute(stmt ast.Stmt) error {
 			return err
 		}
 
+		return nil
+	case *ast.FunctionStmt:
+		function := NewLoxFunction(s, i.environment)
+		i.environment.Define(s.Name.Lexeme, function)
 		return nil
 	case *ast.IfStmt:
 		condition, err := i.evaluate(s.Condition)
@@ -218,6 +265,13 @@ func (i *Interpreter) execute(stmt ast.Stmt) error {
 
 		fmt.Fprintln(i.out, stringValue(value))
 		return nil
+	case *ast.ReturnStmt:
+		value, err := i.evaluate(s.Value)
+		if err != nil {
+			return err
+		}
+
+		return NewReturn(value)
 	case *ast.VarStmt:
 		var value any
 
@@ -249,9 +303,9 @@ func (i *Interpreter) execute(stmt ast.Stmt) error {
 		}
 
 		return nil
-	default:
-		panic("invalid statement")
 	}
+
+	return nil
 }
 
 func (i *Interpreter) executeBlock(stmts []ast.Stmt, environment *Environment) error {
