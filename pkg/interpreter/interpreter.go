@@ -13,13 +13,14 @@ type Interpreter struct {
 	out         io.Writer
 	globals     *Environment
 	environment *Environment
+	locals      map[ast.Expr]int
 }
 
 func New(out io.Writer) *Interpreter {
 	globals := NewEnvironment(nil)
 	globals.Define("clock", &Clock{})
 
-	return &Interpreter{out: out, globals: globals, environment: globals}
+	return &Interpreter{out: out, globals: globals, environment: globals, locals: make(map[ast.Expr]int)}
 }
 
 type Clock struct{}
@@ -47,14 +48,21 @@ func (i *Interpreter) Interpret(stmts []ast.Stmt) error {
 func (i *Interpreter) evaluate(expr ast.Expr) (any, error) {
 	switch e := expr.(type) {
 	case *ast.AssignExpr:
-		value, err := i.evaluate(e.Expression)
+		value, err := i.evaluate(e.Value)
 		if err != nil {
 			return nil, err
 		}
-		err = i.environment.Assign(e.Name, value)
-		if err != nil {
-			return nil, err
+
+		distance, ok := i.locals[e]
+		if ok {
+			i.environment.AssignAt(distance, e.Name.Lexeme, value)
+		} else {
+			err = i.globals.Assign(e.Name, value)
+			if err != nil {
+				return nil, err
+			}
 		}
+
 		return value, nil
 	case *ast.LiteralExpr:
 		return e.Value, nil
@@ -104,11 +112,7 @@ func (i *Interpreter) evaluate(expr ast.Expr) (any, error) {
 			panic("invalid operator")
 		}
 	case *ast.VariableExpression:
-		value, err := i.environment.Get(e.Name)
-		if err != nil {
-			return nil, err
-		}
-		return value, nil
+		return i.lookUpVariable(e.Name, expr)
 	case *ast.BinaryExpr:
 		left, err := i.evaluate(e.Left)
 		if err != nil {
@@ -223,6 +227,15 @@ func (i *Interpreter) evaluate(expr ast.Expr) (any, error) {
 	}
 }
 
+func (i *Interpreter) lookUpVariable(name token.Token, expr ast.Expr) (any, error) {
+	distance, ok := i.locals[expr]
+	if ok {
+		return i.environment.GetAt(distance, name.Lexeme), nil
+	} else {
+		return i.globals.Get(name)
+	}
+}
+
 func (i *Interpreter) execute(stmt ast.Stmt) error {
 	switch s := stmt.(type) {
 	case *ast.BlockStmt:
@@ -322,6 +335,10 @@ func (i *Interpreter) executeBlock(stmts []ast.Stmt, environment *Environment) e
 		}
 	}
 	return nil
+}
+
+func (i *Interpreter) Resolve(expr ast.Expr, depth int) {
+	i.locals[expr] = depth
 }
 
 func (i *Interpreter) isTruthy(val any) bool {

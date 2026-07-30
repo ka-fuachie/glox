@@ -7,6 +7,7 @@ import (
 	"glox/pkg/interpreter"
 	"glox/pkg/lexer"
 	"glox/pkg/parser"
+	"glox/pkg/resolver"
 	"glox/pkg/token"
 	"io"
 	"os"
@@ -84,6 +85,21 @@ func run(source string, interpreter *interpreter.Interpreter) error {
 		}
 
 		statements = append(statements, stmt)
+	}
+
+	if hadError {
+		return firstError
+	}
+
+	resolver := resolver.NewResolver(interpreter)
+	for err := range resolver.Resolve(statements) {
+		if err != nil {
+			report(err)
+			hadError = true
+			if firstError == nil {
+				firstError = err
+			}
+		}
 	}
 
 	if hadError {

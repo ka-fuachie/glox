@@ -43,3 +43,19 @@ func (env *Environment) Assign(name token.Token, value any) error {
 func (env *Environment) Define(name string, value any) {
 	env.values[name] = value
 }
+
+func (env *Environment) GetAt(distance int, name string) any {
+	return env.ancestor(distance).values[name]
+}
+
+func (env *Environment) AssignAt(distance int, name string, value any) {
+	env.ancestor(distance).values[name] = value
+}
+
+func (env *Environment) ancestor(distance int) *Environment {
+	environment := env
+	for range distance {
+		environment = environment.enclosing
+	}
+	return environment
+}

@@ -7,8 +7,8 @@ type Expr interface {
 }
 
 type AssignExpr struct {
-	Name       token.Token
-	Expression Expr
+	Name  token.Token
+	Value Expr
 }
 
 func (e *AssignExpr) expr() {}

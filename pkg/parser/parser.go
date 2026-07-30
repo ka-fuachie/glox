@@ -430,7 +430,7 @@ func (p *Parser) assignment() (ast.Expr, error) {
 
 		if e, ok := expr.(*ast.VariableExpression); ok {
 			name := e.Name
-			return &ast.AssignExpr{Name: name, Expression: value}, nil
+			return &ast.AssignExpr{Name: name, Value: value}, nil
 		}
 
 		// TODO: Should report but not throw
