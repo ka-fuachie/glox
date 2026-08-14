@@ -15,12 +15,22 @@ type FunctionType int
 const (
 	FunctionTypeNone FunctionType = iota
 	FunctionTypeFunction
+	FunctionTypeInitializer
+	FunctionTypeMethod
+)
+
+type ClassType int
+
+const (
+	ClassTypeNone ClassType = iota
+	ClassTypeClass
 )
 
 type Resolver struct {
 	interpreter     *interpreter.Interpreter
 	scopes          []map[string]bool
 	currentFunction FunctionType
+	currentClass    ClassType
 }
 
 func NewResolver(interpreter *interpreter.Interpreter) *Resolver {
@@ -28,6 +38,7 @@ func NewResolver(interpreter *interpreter.Interpreter) *Resolver {
 		interpreter:     interpreter,
 		scopes:          make([]map[string]bool, 0),
 		currentFunction: FunctionTypeNone,
+		currentClass:    ClassTypeNone,
 	}
 }
 
@@ -55,6 +66,26 @@ func (r *Resolver) resolveStatement(stmt ast.Stmt) error {
 		errs := slices.Collect(r.resolveStatements(s.Statements))
 		r.endScope()
 		return errors.Join(errs...)
+
+	case *ast.ClassStmt:
+		enclosingClass := r.currentClass
+		r.currentClass = ClassTypeClass
+
+		r.declare(s.Name)
+		r.define(s.Name)
+
+		r.beginScope()
+		r.scopes[len(r.scopes)-1]["this"] = true
+		for _, method := range s.Methods {
+			declaration := FunctionTypeMethod
+			if method.Name.Lexeme == "init" {
+				declaration = FunctionTypeInitializer
+			}
+			r.resolveFunction(method, declaration)
+		}
+		r.endScope()
+
+		r.currentClass = enclosingClass
 
 	case *ast.ExpressionStmt:
 		return r.resolveExpression(s.Expression)
@@ -84,6 +115,9 @@ func (r *Resolver) resolveStatement(stmt ast.Stmt) error {
 		}
 
 		if s.Value != nil {
+			if r.currentFunction == FunctionTypeInitializer {
+				return gloxError.TokenStaticError(s.Keyword, "Can't return a value from an intializer")
+			}
 			return r.resolveExpression(s.Value)
 		}
 
@@ -126,6 +160,9 @@ func (r *Resolver) resolveExpression(expr ast.Expr) error {
 		}
 		return errors.Join(errs...)
 
+	case *ast.GetExpr:
+		return r.resolveExpression(e.Object)
+
 	case *ast.GroupingExpr:
 		return r.resolveExpression(e.Expression)
 
@@ -137,6 +174,18 @@ func (r *Resolver) resolveExpression(expr ast.Expr) error {
 		errs = append(errs, r.resolveExpression(e.Left))
 		errs = append(errs, r.resolveExpression(e.Right))
 		return errors.Join(errs...)
+
+	case *ast.SetExpr:
+		var errs []error
+		errs = append(errs, r.resolveExpression(e.Value))
+		errs = append(errs, r.resolveExpression(e.Object))
+		return errors.Join(errs...)
+
+	case *ast.ThisExpr:
+		if r.currentClass == ClassTypeNone {
+			return gloxError.TokenStaticError(e.Keyword, "Can't use 'this' outside of a class.")
+		}
+		r.resolveLocal(e, e.Keyword)
 
 	case *ast.UnaryExpr:
 		return r.resolveExpression(e.Right)

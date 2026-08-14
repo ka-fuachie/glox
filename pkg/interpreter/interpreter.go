@@ -91,6 +91,25 @@ func (i *Interpreter) evaluate(expr ast.Expr) (any, error) {
 		}
 
 		return right, nil
+	case *ast.SetExpr:
+		object, err := i.evaluate(e.Object)
+		if err != nil {
+			return nil, err
+		}
+
+		if instance, ok := object.(*LoxInstance); ok {
+			value, err := i.evaluate(e.Value)
+			if err != nil {
+				return nil, err
+			}
+
+			instance.Set(e.Name, value)
+			return value, nil
+		}
+
+		return nil, gloxError.NewRuntimeError(e.Name, "Only instances have fields.")
+	case *ast.ThisExpr:
+		return i.lookUpVariable(e.Keyword, e)
 	case *ast.GroupingExpr:
 		return i.evaluate(e.Expression)
 	case *ast.UnaryExpr:
@@ -222,6 +241,17 @@ func (i *Interpreter) evaluate(expr ast.Expr) (any, error) {
 		}
 
 		return function.Call(i, arguments)
+	case *ast.GetExpr:
+		object, err := i.evaluate(e.Object)
+		if err != nil {
+			return nil, err
+		}
+
+		if instance, ok := object.(*LoxInstance); ok {
+			return instance.Get(e.Name)
+		}
+
+		return nil, gloxError.NewRuntimeError(e.Name, "Only instances have properties.")
 	default:
 		panic("invalid expression")
 	}
@@ -240,6 +270,18 @@ func (i *Interpreter) execute(stmt ast.Stmt) error {
 	switch s := stmt.(type) {
 	case *ast.BlockStmt:
 		return i.executeBlock(s.Statements, NewEnvironment(i.environment))
+	case *ast.ClassStmt:
+		i.environment.Define(s.Name.Lexeme, nil)
+
+		methods := make(map[string]*LoxFunction)
+		for _, method := range s.Methods {
+			function := NewLoxFunction(method, i.environment, method.Name.Lexeme == "init")
+			methods[method.Name.Lexeme] = function
+		}
+
+		class := NewLoxClass(s.Name.Lexeme, methods)
+		i.environment.Assign(s.Name, class)
+		return nil
 	case *ast.ExpressionStmt:
 		_, err := i.evaluate(s.Expression)
 		if err != nil {
@@ -248,7 +290,7 @@ func (i *Interpreter) execute(stmt ast.Stmt) error {
 
 		return nil
 	case *ast.FunctionStmt:
-		function := NewLoxFunction(s, i.environment)
+		function := NewLoxFunction(s, i.environment, false)
 		i.environment.Define(s.Name.Lexeme, function)
 		return nil
 	case *ast.IfStmt:
